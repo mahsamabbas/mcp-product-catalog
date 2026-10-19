@@ -1,0 +1,96 @@
+@import url("https://fonts.googleapis.com/css2?family=Manrope:wght@400;500;600;700&family=Syne:wght@600;700;800&display=swap");
+@import "tailwindcss";
+
+:root {
+  --cp-ink: #0e1525;
+  --cp-steel: #e7ecf2;
+  --cp-surface: #f8fafc;
+  --cp-volt: #c8f542;
+  --cp-ember: #ff5c39;
+  --cp-protocol: #3d5a80;
+  --cp-hairline: color-mix(in srgb, var(--cp-ink) 12%, transparent);
+  --font-display: "Syne", sans-serif;
+  --font-body: "Manrope", sans-serif;
+
+  color: var(--cp-ink);
+  background: var(--cp-steel);
+  font-family: var(--font-body);
+  font-synthesis: none;
+  text-rendering: optimizeLegibility;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+html,
+body,
+#root {
+  height: 100%;
+  margin: 0;
+  font-family: var(--font-body);
+  color: var(--cp-ink);
+  background: var(--cp-steel);
+}
+
+body {
+  min-width: 320px;
+  background-image:
+    radial-gradient(
+      900px 480px at 12% -10%,
+      color-mix(in srgb, var(--cp-volt) 28%, transparent),
+      transparent 60%
+    ),
+    repeating-linear-gradient(
+      -18deg,
+      transparent,
+      transparent 11px,
+      color-mix(in srgb, var(--cp-ink) 3.5%, transparent) 11px,
+      color-mix(in srgb, var(--cp-ink) 3.5%, transparent) 12px
+    );
+}
+
+button,
+input,
+textarea {
+  font: inherit;
+}
+
+@keyframes cp-tool-in {
+  from {
+    opacity: 0;
+    transform: translateY(8px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@keyframes cp-pulse-row {
+  0% {
+    background-color: color-mix(in srgb, var(--cp-volt) 35%, transparent);
+  }
+  100% {
+    background-color: transparent;
+  }
+}
+
+@keyframes cp-shimmer {
+  0% {
+    background-position: 0% 50%;
+  }
+  100% {
+    background-position: 100% 50%;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    scroll-behavior: auto !important;
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+  }
+}
