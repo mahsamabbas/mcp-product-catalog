@@ -12,22 +12,31 @@ def search_products(conn: sqlite3.Connection, query: str, limit: int = 5) -> lis
     if not q:
         return []
     lim = _clamp_limit(limit)
-    like = f"%{q}%"
+    terms = q.split()
+    term_clause = """
+        (
+          name LIKE ? COLLATE NOCASE
+          OR category LIKE ? COLLATE NOCASE
+          OR short_description LIKE ? COLLATE NOCASE
+          OR sku LIKE ? COLLATE NOCASE
+        )
+    """
+    where = " AND ".join(term_clause for _ in terms)
+    params = [
+        value
+        for term in terms
+        for value in (f"%{term}%",) * 4
+    ]
     rows = conn.execute(
-        """
+        f"""
         SELECT sku, name, category, price, currency, short_description
         FROM products
         WHERE active = 1
-          AND (
-            name LIKE ? COLLATE NOCASE
-            OR category LIKE ? COLLATE NOCASE
-            OR short_description LIKE ? COLLATE NOCASE
-            OR sku LIKE ? COLLATE NOCASE
-          )
+          AND {where}
         ORDER BY name
         LIMIT ?
         """,
-        (like, like, like, like, lim),
+        (*params, lim),
     ).fetchall()
     return [dict(r) for r in rows]
 

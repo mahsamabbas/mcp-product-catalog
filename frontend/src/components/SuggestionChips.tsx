@@ -1,5 +1,5 @@
 export const STARTERS = [
-  "Find wireless earbuds under $50",
+  "Find earbuds under $100",
   "Is CP-1001 in stock?",
   "Buy 2 laptops for me",
 ] as const;

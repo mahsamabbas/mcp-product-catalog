@@ -1,5 +1,6 @@
 from collections.abc import AsyncIterator
 from contextlib import asynccontextmanager
+import logging
 from typing import Any
 
 from fastapi import FastAPI
@@ -11,6 +12,8 @@ from app.config import Settings, get_settings
 from app.mcp_client import McpSessionManager
 from app.ollama_client import OllamaClient
 from app.routes import router
+
+logger = logging.getLogger(__name__)
 
 
 class AppState(dict[str, Any]):
@@ -57,7 +60,10 @@ def create_app(testing: bool = False) -> FastAPI:
         )
         app.state["mcp"] = mcp
         app.state["ollama"] = OllamaClient(settings.ollama_base_url)
-        await mcp.start()
+        try:
+            await mcp.start()
+        except Exception:
+            logger.exception("Failed to start MCP session")
         try:
             yield
         finally:

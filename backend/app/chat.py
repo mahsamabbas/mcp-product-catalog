@@ -67,10 +67,14 @@ async def run_chat(
     trace: list[ToolTraceEvent] = []
 
     for _ in range(max_rounds):
+        if not mcp.ready:
+            raise ChatServiceError("Tool layer unavailable", status=503)
         try:
             response = await ollama.chat(messages=messages, tools=tools, model=model)
         except Exception as exc:
             raise ChatServiceError("Answer service unavailable", status=503) from exc
+        if not mcp.ready:
+            raise ChatServiceError("Tool layer unavailable", status=503)
 
         assistant = response.get("message") or {}
         tool_calls = assistant.get("tool_calls") or []
@@ -88,7 +92,11 @@ async def run_chat(
             if parse_error:
                 result, elapsed_ms, ok, error = None, 0, False, parse_error
             else:
+                if not mcp.ready:
+                    raise ChatServiceError("Tool layer unavailable", status=503)
                 result, elapsed_ms, ok, error = await mcp.call_tool(name, arguments)
+                if not mcp.ready:
+                    raise ChatServiceError("Tool layer unavailable", status=503)
 
             trace.append(
                 ToolTraceEvent(

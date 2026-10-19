@@ -19,6 +19,15 @@ def test_search_finds_earbuds(tmp_path: Path):
     assert any("earbud" in r["name"].lower() or "earbud" in r["short_description"].lower() for r in rows)
 
 
+def test_search_multi_word_terms_are_anded_across_fields(tmp_path: Path):
+    conn = _conn(tmp_path)
+
+    rows = search_products(conn, "AeroSound headphones", limit=5)
+
+    assert [row["sku"] for row in rows] == ["CP-1001"]
+    assert search_products(conn, "AeroSound laptops", limit=5) == []
+
+
 def test_search_empty_query_returns_empty(tmp_path: Path):
     conn = _conn(tmp_path)
     assert search_products(conn, "   ", limit=5) == []

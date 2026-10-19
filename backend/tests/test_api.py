@@ -180,3 +180,48 @@ def test_non_testing_lifespan_initializes_and_stops_services(
         "mcp_started",
         "mcp_stopped",
     ]
+
+
+def test_lifespan_survives_mcp_start_failure_and_health_reports_false(
+    monkeypatch,
+    tmp_path: Path,
+    caplog,
+):
+    db_path = str(tmp_path / "catalog.db")
+    events = []
+
+    class FailingMcp:
+        ready = False
+
+        def __init__(self, **kwargs):
+            pass
+
+        async def start(self):
+            raise ConnectionError("stdio closed")
+
+        async def stop(self):
+            events.append("mcp_stopped")
+
+    class HealthyOllama:
+        def __init__(self, base_url):
+            pass
+
+        async def healthy(self):
+            return True
+
+    monkeypatch.setattr(
+        main_module,
+        "get_settings",
+        lambda: Settings(catalog_db_path=db_path),
+    )
+    monkeypatch.setattr(main_module, "McpSessionManager", FailingMcp)
+    monkeypatch.setattr(main_module, "OllamaClient", HealthyOllama)
+
+    app = create_app()
+    with TestClient(app) as client:
+        response = client.get("/health")
+
+    assert response.status_code == 200
+    assert response.json() == {"ollama": True, "mcp": False, "catalog_count": 29}
+    assert events == ["mcp_stopped"]
+    assert "Failed to start MCP session" in caplog.text

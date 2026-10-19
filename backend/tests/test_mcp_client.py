@@ -148,5 +148,29 @@ def test_call_tool_reports_mcp_and_transport_errors():
         assert value is None
         assert ok is False
         assert error == "connection lost"
+        assert manager.ready is False
 
     asyncio.run(run())
+
+
+@pytest.mark.asyncio
+async def test_real_mcp_server_lists_and_calls_catalog_tools(tmp_path):
+    manager = McpSessionManager(catalog_db_path=str(tmp_path / "catalog.db"))
+    try:
+        await manager.start()
+
+        tools = await manager.list_tools()
+        tool_names = {tool["name"] for tool in tools}
+        result, _, ok, error = await manager.call_tool(
+            "search_products", {"query": "AeroSound earbuds"}
+        )
+
+        assert {"search_products", "lookup_stock"} <= tool_names
+        assert ok is True
+        assert error is None
+        assert result["count"] >= 1
+        assert any(item["sku"] == "CP-1001" for item in result["results"])
+    finally:
+        await manager.stop()
+
+    assert manager.ready is False

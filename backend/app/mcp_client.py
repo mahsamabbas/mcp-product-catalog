@@ -111,6 +111,8 @@ class McpSessionManager:
             error = None if ok else self._error_message(result)
             return result, self._elapsed_ms(started), ok, error
         except Exception as exc:
+            if self._is_transport_error(exc):
+                self._ok = False
             return None, self._elapsed_ms(started), False, str(exc)
 
     def _require_session(self) -> Any:
@@ -157,3 +159,32 @@ class McpSessionManager:
     @staticmethod
     def _elapsed_ms(started: float) -> int:
         return max(0, round((perf_counter() - started) * 1000))
+
+    @staticmethod
+    def _is_transport_error(exc: Exception) -> bool:
+        transport_types = {
+            "BrokenResourceError",
+            "ClosedResourceError",
+            "EndOfStream",
+        }
+        current: BaseException | None = exc
+        while current is not None:
+            if isinstance(current, (BrokenPipeError, ConnectionError, EOFError)):
+                return True
+            if type(current).__name__ in transport_types:
+                return True
+            message = str(current).lower()
+            if any(
+                marker in message
+                for marker in (
+                    "broken pipe",
+                    "closed session",
+                    "connection closed",
+                    "connection lost",
+                    "session is closed",
+                    "stream is closed",
+                )
+            ):
+                return True
+            current = current.__cause__ or current.__context__
+        return False

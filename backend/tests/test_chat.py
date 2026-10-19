@@ -207,6 +207,95 @@ async def test_mcp_not_ready_raises():
 
 
 @pytest.mark.asyncio
+async def test_mcp_becoming_unready_mid_loop_raises():
+    mcp = FakeMcp()
+    ollama = FakeOllama(
+        [
+            {
+                "message": {
+                    "role": "assistant",
+                    "tool_calls": [
+                        {
+                            "function": {
+                                "name": "search_products",
+                                "arguments": {"query": "earbuds"},
+                            }
+                        }
+                    ],
+                }
+            }
+        ]
+    )
+
+    async def transport_failure(name, arguments):
+        mcp.ready = False
+        return None, 1, False, "connection lost"
+
+    mcp.call_tool = transport_failure
+
+    with pytest.raises(ChatServiceError, match="Tool layer unavailable") as exc:
+        await run_chat("Find earbuds", [], mcp, ollama, max_rounds=5, model="x")
+
+    assert exc.value.status == 503
+
+
+@pytest.mark.asyncio
+async def test_mcp_drop_during_answer_generation_raises():
+    mcp = FakeMcp()
+
+    class DropsMcpWhileAnswering(FakeOllama):
+        async def chat(self, **kwargs):
+            mcp.ready = False
+            return {"message": {"role": "assistant", "content": "Unverified answer"}}
+
+    with pytest.raises(ChatServiceError, match="Tool layer unavailable") as exc:
+        await run_chat(
+            "Find earbuds",
+            [],
+            mcp,
+            DropsMcpWhileAnswering([]),
+            max_rounds=5,
+            model="x",
+        )
+
+    assert exc.value.status == 503
+
+
+@pytest.mark.asyncio
+async def test_logical_tool_failure_remains_a_trace_event():
+    ollama = FakeOllama(
+        [
+            {
+                "message": {
+                    "role": "assistant",
+                    "tool_calls": [
+                        {
+                            "function": {
+                                "name": "search_products",
+                                "arguments": {"query": "camera"},
+                            }
+                        }
+                    ],
+                }
+            },
+            {"message": {"role": "assistant", "content": "No result available."}},
+        ]
+    )
+
+    class LogicalFailureMcp(FakeMcp):
+        async def call_tool(self, name, arguments):
+            return {"code": "invalid_query"}, 3, False, "invalid query"
+
+    out = await run_chat(
+        "Find a camera", [], LogicalFailureMcp(), ollama, max_rounds=5, model="x"
+    )
+
+    assert out.answer == "No result available."
+    assert out.tool_trace[0].ok is False
+    assert out.tool_trace[0].result == {"code": "invalid_query"}
+
+
+@pytest.mark.asyncio
 async def test_run_chat_accepts_settings_for_model_and_round_limit():
     ollama = FakeOllama(
         [{"message": {"role": "assistant", "content": "Hello from CatalogPilot."}}]
