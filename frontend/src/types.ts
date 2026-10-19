@@ -35,3 +35,23 @@ export interface CatalogSummary {
   categories: Record<string, number>;
   sample_skus: string[];
 }
+
+export interface UserMsg {
+  id: string;
+  kind: "user";
+  content: string;
+}
+
+export interface AssistantMsg {
+  id: string;
+  kind: "assistant";
+  content: string;
+}
+
+export interface ToolGroupMsg {
+  id: string;
+  kind: "tools";
+  events: ToolTraceEvent[];
+}
+
+export type ThreadMessage = UserMsg | AssistantMsg | ToolGroupMsg;
