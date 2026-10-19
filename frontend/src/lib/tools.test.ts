@@ -34,4 +34,8 @@ describe("tool helpers", () => {
   it("surfaces errors", () => {
     expect(resultSummary({ ...base, ok: false, error: "boom" })).toBe("boom");
   });
+  it("guards lookup_stock without quantity", () => {
+    const e = { ...base, name: "lookup_stock", result: { found: true, in_stock: true } };
+    expect(resultSummary(e)).toBe("In stock");
+  });
 });

@@ -42,10 +42,11 @@ async function request<T>(path: string, init?: RequestInit): Promise<T> {
   return (await response.json()) as T;
 }
 
-export function postChat(body: ChatRequest): Promise<ChatResponse> {
+export function postChat(body: ChatRequest, signal?: AbortSignal): Promise<ChatResponse> {
   return request<ChatResponse>("/chat", {
     method: "POST",
     body: JSON.stringify(body),
+    signal,
   });
 }
 

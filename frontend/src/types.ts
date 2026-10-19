@@ -55,3 +55,6 @@ export interface ToolGroupMsg {
 }
 
 export type ThreadMessage = UserMsg | AssistantMsg | ToolGroupMsg;
+
+/** Outcome of a send: "stale" means the chat was cleared mid-flight. */
+export type SendResult = "ok" | "failed" | "stale";

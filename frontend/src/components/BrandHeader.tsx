@@ -1,3 +1,4 @@
+import type { Ref } from "react";
 import { StatusPill } from "./StatusPill";
 
 interface Props {
@@ -5,9 +6,18 @@ interface Props {
   canClear: boolean;
   onClear: () => void;
   onToggleInspector: () => void;
+  inspectorOpen: boolean;
+  toggleRef?: Ref<HTMLButtonElement>;
 }
 
-export function BrandHeader({ live, canClear, onClear, onToggleInspector }: Props) {
+export function BrandHeader({
+  live,
+  canClear,
+  onClear,
+  onToggleInspector,
+  inspectorOpen,
+  toggleRef,
+}: Props) {
   return (
     <header className="cp-header">
       <div className="cp-brand">
@@ -17,8 +27,11 @@ export function BrandHeader({ live, canClear, onClear, onToggleInspector }: Prop
       <div className="cp-header-actions">
         <StatusPill live={live} />
         <button
+          ref={toggleRef}
           type="button"
           className="cp-btn-outline cp-inspector-toggle"
+          aria-expanded={inspectorOpen}
+          aria-controls="cp-inspector"
           onClick={onToggleInspector}
         >
           Inspector

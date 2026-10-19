@@ -6,6 +6,8 @@
   --cp-surface: #f8fafc;
   --cp-volt: #c8f542;
   --cp-ember: #ff5c39;
+  /* Small text on light surfaces: ember fails AA, this passes (~6:1 on white). */
+  --cp-ember-ink: #b3260a;
   --cp-protocol: #3d5a80;
   --cp-hairline: color-mix(in srgb, var(--cp-ink) 12%, transparent);
   --font-display: "Syne", sans-serif;
@@ -137,7 +139,7 @@ textarea {
 
 .cp-btn-outline {
   background: transparent;
-  color: var(--cp-ember);
+  color: var(--cp-ink);
   border: 1px solid var(--cp-ember);
   border-radius: 2px;
   padding: 7px 12px;
@@ -149,7 +151,7 @@ textarea {
 }
 .cp-btn-outline:hover:not(:disabled) {
   background: var(--cp-ember);
-  color: #fff;
+  color: var(--cp-ink);
 }
 .cp-btn-outline:active:not(:disabled) {
   transform: translateY(1px);
@@ -450,7 +452,7 @@ textarea {
   font-variant-numeric: tabular-nums;
 }
 .cp-ok { color: color-mix(in srgb, var(--cp-ink) 60%, var(--cp-volt)); }
-.cp-fail { color: var(--cp-ember); }
+.cp-fail { color: var(--cp-ember-ink); }
 .cp-row p {
   margin: 4px 0 0;
   font-size: 0.82rem;
@@ -478,7 +480,7 @@ textarea {
 }
 .cp-send {
   background: var(--cp-ember);
-  color: #fff;
+  color: var(--cp-ink);
   border: 1px solid var(--cp-ember);
   border-radius: 0 2px 2px 0;
   padding: 0 28px;
@@ -530,5 +532,9 @@ textarea {
     transition: transform 200ms ease-out;
     z-index: 11;
   }
-  .cp-inspector--open { transform: translateX(0); }
+  .cp-inspector:not(.cp-inspector--open) {
+    visibility: hidden;
+    transition: transform 200ms ease-out, visibility 0s linear 200ms;
+  }
+  .cp-inspector--open { transform: translateX(0); visibility: visible; }
 }

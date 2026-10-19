@@ -46,7 +46,12 @@ export function resultSummary(event: ToolTraceEvent): string {
       if (obj.found === false) return "SKU not found";
       const qty = obj.quantity;
       const wh = obj.warehouse;
-      const head = obj.in_stock === false ? "Out of stock" : `${qty} in stock`;
+      const head =
+        obj.in_stock === false
+          ? "Out of stock"
+          : typeof qty === "number"
+            ? `${qty} in stock`
+            : "In stock";
       return wh ? `${head} · ${String(wh)}` : head;
     }
   }
