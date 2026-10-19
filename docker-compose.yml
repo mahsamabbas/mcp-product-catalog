@@ -1,0 +1,32 @@
+services:
+  backend:
+    build:
+      context: .
+      dockerfile: backend/Dockerfile
+    ports:
+      - "8009:8000"
+    environment:
+      OLLAMA_BASE_URL: http://host.docker.internal:11434
+      OLLAMA_CHAT_MODEL: qwen2.5:7b
+      CATALOG_DB_PATH: /data/catalog.db
+      CORS_ORIGINS: http://localhost:3009
+      MCP_SERVER_SCRIPT: mcp_server/server.py
+      PYTHONPATH: /app
+    volumes:
+      - catalog_data:/data
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+
+  frontend:
+    build:
+      context: .
+      dockerfile: frontend/Dockerfile
+      args:
+        VITE_API_BASE_URL: http://localhost:8009
+    ports:
+      - "3009:80"
+    depends_on:
+      - backend
+
+volumes:
+  catalog_data:
