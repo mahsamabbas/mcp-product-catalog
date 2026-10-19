@@ -1,57 +1,124 @@
-# CatalogPilot
+# CatalogPilot — MCP Product Catalog Assistant
 
-CatalogPilot is a local-first product catalog assistant for a synthetic consumer-electronics store. Ask about products, prices, SKUs, and stock while the UI exposes every catalog tool call in inline cards and an MCP Inspector.
+CatalogPilot is a local-first chat assistant over a **synthetic consumer-electronics catalog**. Ask about products, prices, SKUs, and stock. Answers are grounded in a **real MCP server** (read-only tools); the UI shows every tool call as **inline cards** plus a right-side **MCP Inspector**.
 
-FastAPI owns a real MCP stdio server as a child process for its full lifetime. The browser talks only to FastAPI; FastAPI uses MCP for grounded catalog data and Ollama for the tool-calling chat loop.
+Portfolio app 10 of 10. Scope: local MCP product-search and stock-lookup over synthetic data, connect an AI assistant, and show tool calls/results. No purchases, customer data, or production systems.
 
-## Features
+## What it does
 
-- Grounded product search and stock lookup through read-only MCP tools
-- Visible tool arguments, results, status, and latency
-- Local Ollama inference with no cloud API required
-- Seeded SQLite catalog persisted in Docker
-- Responsive React chat with session-only history and Clear chat
-- Health and catalog summary endpoints
+- **Real MCP, not a fake label.** FastAPI owns a Python MCP stdio child for the API lifetime. Tools are `search_products` and `lookup_stock` over SQLite.
+- **Ollama tool-calling loop.** The model receives MCP tool schemas, may call tools (max 5 rounds), and FastAPI executes each call through the MCP client. Catalog facts (price, stock, SKU) come **only** from tool results — never invented.
+- **Visible tool trace.** Each turn returns `tool_trace[]` (name, args, result, latency, ok/error). The chat shows inline tool cards; the Inspector keeps a session timeline until Clear chat.
+- **Honest refusals.** Purchases, carts, payments, and PII requests are refused. Empty search / unknown SKU return grounded “not found” answers.
+- **Local-only demo.** No cloud LLM key required. Browser talks only to FastAPI; never to Ollama or MCP directly.
 
-## Stack
+## Architecture
 
-| Layer | Technology |
+```text
+[Browser · CatalogPilot · :3009]
+  chat · ToolCard · Inspector · Clear chat · suggestion chips
+        │ HTTP only
+        ▼
+[FastAPI · :8009]
+  POST /chat → list MCP tools → Ollama tool loop → MCP call_tool
+  GET /health · GET /catalog/summary
+        │
+        ├──► [MCP server · stdio child]
+        │      search_products · lookup_stock
+        │      └── SQLite electronics catalog (~29 SKUs)
+        │
+        └──► [Ollama · host :11434]
+               qwen2.5:7b (tool-capable)
+```
+
+Docker Compose runs frontend (nginx) + backend; Ollama stays on the host via `host.docker.internal`.
+
+## Concepts demonstrated
+
+| Concept | How CatalogPilot shows it |
 | --- | --- |
-| Frontend | React 19, TypeScript, Vite, Tailwind CSS 4, nginx |
-| API | Python 3.12, FastAPI, Uvicorn, Pydantic 2 |
-| Tool protocol | MCP Python SDK over stdio |
-| Model | Ollama with `qwen2.5:7b` |
-| Data | SQLite |
-| Tests | pytest, pytest-asyncio, Vitest, Testing Library |
-| Runtime | Docker Compose |
+| **MCP (Model Context Protocol)** | Standalone stdio server; FastAPI is the MCP client (`list_tools` / `call_tool`) |
+| **Tool calling** | Ollama chat-with-tools; arguments mapped from MCP JSON schemas |
+| **Grounded answers** | System prompt: use tools for catalog facts; never invent SKU/price/stock |
+| **Tool observability** | `ToolTraceEvent` → inline cards + Inspector timeline |
+| **Read-only tools** | Search + stock only; no write/buy/cart MCP tools |
+| **Human-readable UX** | Brand-first “precision retail ops” UI (Syne + Manrope, steel / volt / ember) |
+| **Local LLM ops** | Host Ollama; Docker backend reaches it without baking the model into the image |
 
-Key libraries include `httpx` for Ollama HTTP calls, `pydantic-settings` for configuration, and the official `mcp` SDK for the FastAPI-owned stdio client/server session.
+## Tech stack
+
+| Layer | Choice |
+| --- | --- |
+| Frontend | React 19, TypeScript, Vite 6, Tailwind CSS v4, nginx (production) |
+| Backend | Python 3.12, FastAPI, Uvicorn, Pydantic v2, pydantic-settings |
+| MCP | Official Python `mcp` SDK (`>=2.3,<3`) — stdio server + client session |
+| LLM | Ollama `qwen2.5:7b` (override with `OLLAMA_CHAT_MODEL`) via HTTP (`httpx`) |
+| Data | SQLite (`catalog.db`), seeded synthetic electronics |
+| Tests | pytest, pytest-asyncio, Vitest, Testing Library / jsdom |
+| Delivery | Docker Compose (ports **3009** UI · **8009** API · **11434** Ollama) |
+
+## Libraries and pieces
+
+### Backend
+
+| Piece | Role |
+| --- | --- |
+| `fastapi` / `uvicorn` | HTTP API, lifespan, CORS |
+| `pydantic` / `pydantic-settings` | Request/response models, env config |
+| `httpx` | Async calls to Ollama `/api/chat` and `/api/tags` |
+| `mcp` | MCP server (`MCPServer`) + stdio client (`stdio_client`, `ClientSession`) |
+| `sqlite3` | Catalog schema, seed, tokenized `LIKE` search |
+| `app/catalog/` | `db.py`, `queries.py`, `seed_data.py` |
+| `mcp_server/server.py` | Tools: `search_products`, `lookup_stock` |
+| `app/mcp_client.py` | Spawn/own stdio child; list/call tools; readiness |
+| `app/ollama_client.py` | Chat-with-tools + health probe |
+| `app/chat.py` | System prompt, tool loop, `ToolTraceEvent` assembly, 503 errors |
+
+### Frontend
+
+| Piece | Role |
+| --- | --- |
+| `react` / `react-dom` | UI |
+| `vite` / `@vitejs/plugin-react` | Dev server (3009) and production build |
+| `typescript` | Strict typing; mirrors API types |
+| `tailwindcss` / `@tailwindcss/vite` | Utility styling + design tokens |
+| `vitest` / `jsdom` / `@testing-library/react` | Unit tests (formatters, session helpers, tool summaries) |
+| Components | `BrandHeader`, `StatusPill`, `ChatThread`, `ToolCard`, `Inspector`, `Composer`, `SuggestionChips` |
+
+## MCP tools
+
+| Tool | Input | Output |
+| --- | --- | --- |
+| `search_products` | `query` (required), `limit` (default 5, max 20) | `{ results: [...], count }` — sku, name, category, price, currency, short_description |
+| `lookup_stock` | `sku` (required) | Hit: sku, name, found, in_stock, quantity, warehouse · Miss: `{ sku, found: false }` |
+
+Search tokenizes the query and **AND**s case-insensitive `LIKE` matches across name, category, description, and SKU. Inactive rows are excluded.
 
 ## API
 
-| Method | Route | Purpose |
+| Method | Path | Purpose |
 | --- | --- | --- |
-| `GET` | `/health` | Report Ollama/MCP readiness and catalog count |
-| `GET` | `/catalog/summary` | Return product count, category counts, and sample SKUs |
-| `POST` | `/chat` | Run one chat turn and return the answer plus MCP tool trace |
+| `GET` | `/health` | `{ ollama, mcp, catalog_count }` |
+| `GET` | `/catalog/summary` | Product count, categories, sample SKUs |
+| `POST` | `/chat` | One turn → `{ answer, tool_trace[] }` |
 
-`POST /chat` accepts:
+`POST /chat` body:
 
 ```json
 {
-  "message": "Find wireless earbuds under $50",
+  "message": "Find earbuds under $100",
   "history": [
     { "role": "user", "content": "I need headphones" },
-    { "role": "assistant", "content": "What kind?" }
+    { "role": "assistant", "content": "Wireless or over-ear?" }
   ]
 }
 ```
 
-Interactive OpenAPI documentation is available at `http://localhost:8009/docs`.
+Errors: `422` empty message · `503` Ollama or MCP tool layer unavailable.
+
+OpenAPI: http://localhost:8009/docs
 
 ## Environment
-
-Copy the examples before local development if you want to customize defaults:
 
 ```bash
 cp backend/.env.example backend/.env
@@ -60,19 +127,17 @@ cp frontend/.env.example frontend/.env
 
 | Variable | Default | Purpose |
 | --- | --- | --- |
-| `OLLAMA_BASE_URL` | `http://127.0.0.1:11434` | Ollama API URL; Compose uses `http://host.docker.internal:11434` |
-| `OLLAMA_CHAT_MODEL` | `qwen2.5:7b` | Tool-capable Ollama model |
-| `CORS_ORIGINS` | `http://localhost:3009` | Comma-separated allowed browser origins |
-| `CATALOG_DB_PATH` | `./data/catalog.db` | SQLite database path; Compose uses `/data/catalog.db` |
-| `MCP_SERVER_SCRIPT` | `mcp_server/server.py` | MCP stdio server entry point |
-| `MAX_TOOL_ROUNDS` | `5` | Maximum tool-call rounds per chat turn |
-| `VITE_API_BASE_URL` | `http://localhost:8009` | API URL compiled into the frontend |
+| `OLLAMA_BASE_URL` | `http://127.0.0.1:11434` | Compose uses `http://host.docker.internal:11434` |
+| `OLLAMA_CHAT_MODEL` | `qwen2.5:7b` | Tool-capable chat model |
+| `CORS_ORIGINS` | `http://localhost:3009` | Comma-separated browser origins |
+| `CATALOG_DB_PATH` | `./data/catalog.db` | Compose: `/data/catalog.db` (named volume) |
+| `MCP_SERVER_SCRIPT` | `mcp_server/server.py` | Stdio MCP entry |
+| `MAX_TOOL_ROUNDS` | `5` | Cap per chat turn |
+| `VITE_API_BASE_URL` | `http://localhost:8009` | Frontend build-time API URL |
 
-These settings contain no secrets. Vite variables are public browser configuration.
+No secrets required for the core demo.
 
 ## Run with Docker
-
-Ollama runs on the host so models can use the host's hardware:
 
 ```bash
 ollama serve
@@ -80,61 +145,61 @@ ollama pull qwen2.5:7b
 docker compose up --build
 ```
 
-Open `http://localhost:3009`. The API is at `http://localhost:8009`. Compose maps host Ollama into the backend with `host.docker.internal`, starts the MCP stdio child inside the backend container, and stores the catalog in the `catalog_data` volume.
+- UI: http://localhost:3009  
+- API: http://localhost:8009  
 
-Stop the app with `docker compose down`. Add `-v` only when you also want to delete the persisted catalog volume.
+Stop: `docker compose down`. Add `-v` only to wipe the catalog volume.
+
+**Linux:** Ollama often listens on `127.0.0.1` only; the container may need `OLLAMA_HOST=0.0.0.0` (or the Docker bridge IP) on the host so `host.docker.internal` can reach it. Prefer binding to the bridge IP and firewalling port 11434 rather than exposing Ollama on every interface.
 
 ## Run locally
 
-Requirements: Python 3.12, Node.js 22, and Ollama.
+Python 3.12, Node 22, Ollama on the host.
 
 ```bash
 ollama serve
 ollama pull qwen2.5:7b
 
+# backend
 cd backend
-python3.12 -m venv .venv
-source .venv/bin/activate
+python3.12 -m venv .venv && source .venv/bin/activate
 pip install -r requirements.txt -r requirements-dev.txt
+cp .env.example .env
 PYTHONPATH=. uvicorn app.main:app --reload --port 8009
-```
 
-In another terminal:
-
-```bash
+# frontend (other terminal)
 cd frontend
 npm ci
+cp .env.example .env
 npm run dev
 ```
 
-Open `http://localhost:3009`.
+Open http://localhost:3009.
+
+### Try it
+
+- Chip **Find earbuds under $100** → `search_products` trace + grounded list  
+- Chip **Is CP-1001 in stock?** → `lookup_stock`  
+- Chip **Buy 2 laptops for me** → refusal, no purchase tool  
 
 ## Tests
 
-Tests use fakes and temporary databases; they do not require a live Ollama model.
+Mocks / temp DB — no live model required for the suite. One integration test starts a real MCP stdio session against a temp catalog.
 
 ```bash
-cd backend
-source .venv/bin/activate
-PYTHONPATH=. pytest -v
-
-cd ../frontend
-npm test
-```
-
-To validate deployment configuration:
-
-```bash
-docker compose config
+cd backend && source .venv/bin/activate && PYTHONPATH=. pytest -v
+cd ../frontend && npm test
+docker compose config   # optional config check
 ```
 
 ## Limitations
 
-- Tool-calling quality and response time depend on the local model and hardware.
-- Catalog search uses SQL keyword matching, not semantic retrieval or embeddings.
-- The stdio MCP lifecycle is designed for a local single-API demo, not a multi-tenant gateway.
-- Chat history is browser-session state and responses are non-streaming.
-- Catalog tools are intentionally read-only; there is no checkout, payment, authentication, or production inventory integration.
+- Answer quality and latency depend on local Ollama hardware and the model’s tool-calling behavior.
+- Search is keyword SQL (tokenized AND), not semantic / vector retrieval.
+- Stdio MCP is for a single local API process — not a multi-tenant MCP gateway.
+- Chat history is in-browser only (Clear chat); follow-ups do not automatically replay prior tool payloads unless the assistant re-calls tools or cites them from prior text.
+- Responses are non-streaming JSON in v1.
+- No auth, checkout, ERP sync, or real inventory.
 
 ## Project documents
 
